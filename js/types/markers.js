@@ -100,6 +100,7 @@ Flotr.addType('markers', {
         margin = 2,
         left = x,
         top = y,
+        align = 'left',
         dim;
 
     if (isImage(label))
@@ -110,7 +111,7 @@ Flotr.addType('markers', {
     dim.width = Math.floor(dim.width+margin*2);
     dim.height = Math.floor(dim.height+margin*2);
 
-         if (options.position.indexOf('c') != -1) left -= dim.width/2 + margin;
+    if (options.position.indexOf('c') != -1) {align = 'center'; left -= margin;}
     else if (options.position.indexOf('l') != -1) left -= dim.width;
     
          if (options.position.indexOf('m') != -1) top -= dim.height/2 + margin;
@@ -129,7 +130,7 @@ Flotr.addType('markers', {
     if (isImage(label))
       context.drawImage(label, left+margin, top+margin);
     else
-      Flotr.drawText(context, label, left+margin, top+margin, {textBaseline: 'top', textAlign: 'left', size: options.fontSize, color: options.color});
+      Flotr.drawText(context, label, left+margin, top+margin, {textBaseline: 'top', textAlign: align, size: options.fontSize, color: options.color});
   }
 });
 
