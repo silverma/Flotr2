@@ -101,15 +101,23 @@ Flotr.addType('markers', {
         left = x,
         top = y,
         align = 'left',
+        i,
+        lineSpacing = 3,
+        lines,
+        lineHeight,
         dim;
 
-    if (isImage(label))
+    if (isImage(label)) {
       dim = {height : label.height, width: label.width};
-    else
+	 dim.height = Math.floor(dim.height+margin*2);
+    } else {
       dim = options.text.canvas(label);
+	 lineHeight = dim.height;
+      lines = label.split('\n');
+	 dim.height = Math.floor(dim.height*lines.length+lineSpacing*(lines.length-1));
+    }
 
     dim.width = Math.floor(dim.width+margin*2);
-    dim.height = Math.floor(dim.height+margin*2);
 
     if (options.position.indexOf('c') != -1) {align = 'center'; left -= margin;}
     else if (options.position.indexOf('l') != -1) left -= dim.width;
@@ -129,8 +137,13 @@ Flotr.addType('markers', {
     
     if (isImage(label))
       context.drawImage(label, left+margin, top+margin);
-    else
-      Flotr.drawText(context, label, left+margin, top+margin, {textBaseline: 'top', textAlign: align, size: options.fontSize, color: options.color});
+    else {
+	 top;// += margin;
+	 for (i = 0; i<lines.length; i++) {
+        Flotr.drawText(context, lines[i], left+margin, top, {textBaseline: 'top', textAlign: align, size: options.fontSize, color: options.color});	 
+	   top += lineHeight+lineSpacing;
+	 }
+    }
   }
 });
 
