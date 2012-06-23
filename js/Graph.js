@@ -274,6 +274,8 @@ Graph.prototype = {
     var
       type = series[typeKey],
       graphType = this[typeKey],
+      xaxis = series.xaxis,
+      yaxis = series.yaxis,
       options = {
         context     : this.ctx,
         width       : this.plotWidth,
@@ -287,8 +289,10 @@ Graph.prototype = {
         data        : series.data,
         color       : series.color,
         shadowSize  : series.shadowSize,
-        xScale      : _.bind(series.xaxis.d2p, series.xaxis),
-        yScale      : _.bind(series.yaxis.d2p, series.yaxis)
+        xScale      : xaxis.d2p,
+        yScale      : yaxis.d2p,
+        xInverse    : xaxis.p2d,
+        yInverse    : yaxis.p2d
       };
 
     options = flotr.merge(type, options);
@@ -440,13 +444,14 @@ Graph.prototype = {
     }
   },
 
-  clip: function () {
+  clip: function (ctx) {
 
     var
-      ctx = this.ctx,
       o   = this.plotOffset,
       w   = this.canvasWidth,
       h   = this.canvasHeight;
+
+    ctx = ctx || this.ctx;
 
     if (flotr.isIE && flotr.isIE < 9) {
       // Clipping for excanvas :-(
@@ -491,6 +496,8 @@ Graph.prototype = {
         touchend = true;
         E.stopObserving(document, 'touchend', touchendHandler);
         E.fire(el, 'flotr:mouseup', [event, this]);
+        this.multitouches = null;
+
         if (!movement) {
           this.clickHandler(e);
         }
@@ -500,22 +507,31 @@ Graph.prototype = {
         movement = false;
         touchend = false;
         this.ignoreClick = false;
+
+        if (e.touches && e.touches.length > 1) {
+          this.multitouches = e.touches;
+        }
+
         E.fire(el, 'flotr:mousedown', [event, this]);
         this.observe(document, 'touchend', touchendHandler);
       }, this));
 
       this.observe(this.overlay, 'touchmove', _.bind(function (e) {
 
-        e.preventDefault();
+        var pos = this.getEventPosition(e);
+
+        if (this.options.preventDefault) {
+          e.preventDefault();
+        }
 
         movement = true;
 
-        var pageX = e.touches[0].pageX,
-          pageY = e.touches[0].pageY,
-          pos = this.getEventPosition(e.touches[0]);
-
-        if (!touchend) {
-          E.fire(el, 'flotr:mousemove', [event, pos, this]);
+        if (this.multitouches || (e.touches && e.touches.length > 1)) {
+          this.multitouches = e.touches;
+        } else {
+          if (!touchend) {
+            E.fire(el, 'flotr:mousemove', [event, pos, this]);
+          }
         }
         this.lastMousePos = pos;
       }, this));
@@ -575,7 +591,7 @@ Graph.prototype = {
     this.ctx = getContext(this.canvas);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.octx = getContext(this.overlay);
-    this.ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
+    this.octx.clearRect(0, 0, this.overlay.width, this.overlay.height);
     this.canvasHeight = size.height;
     this.canvasWidth = size.width;
     this.textEnabled = !!this.ctx.drawText || !!this.ctx.fillText; // Enable text functions

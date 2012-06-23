@@ -16,6 +16,9 @@ Flotr.addPlugin('hit', {
     },
     'flotr:mouseout': function() {
       this.hit.clearHit();
+    },
+    'flotr:destroy': function() {
+      this.mouseTrack = null;
     }
   },
   track : function (pos) {
@@ -73,17 +76,19 @@ Flotr.addPlugin('hit', {
       octx.translate(this.plotOffset.left, this.plotOffset.top);
 
       if (!this.hit.executeOnType(s, 'drawHit', n)) {
-        var xa = n.xaxis,
+        var
+          xa = n.xaxis,
           ya = n.yaxis;
 
         octx.beginPath();
           // TODO fix this (points) should move to general testable graph mixin
-          octx.arc(xa.d2p(n.x), ya.d2p(n.y), s.points.radius || s.mouse.radius, 0, 2 * Math.PI, true);
+          octx.arc(xa.d2p(n.x), ya.d2p(n.y), s.points.hitRadius || s.points.radius || s.mouse.radius, 0, 2 * Math.PI, true);
           octx.fill();
           octx.stroke();
         octx.closePath();
       }
       octx.restore();
+      this.clip(octx);
     }
     this.prevHit = n;
   },
@@ -102,7 +107,7 @@ Flotr.addPlugin('hit', {
         var
           s = prev.series,
           lw = (s.points ? s.points.lineWidth : 1);
-          offset = (s.points.radius || s.mouse.radius) + lw;
+          offset = (s.points.hitRadius || s.points.radius || s.mouse.radius) + lw;
         octx.clearRect(
           prev.xaxis.d2p(prev.x) - offset,
           prev.yaxis.d2p(prev.y) - offset,
@@ -121,12 +126,12 @@ Flotr.addPlugin('hit', {
    * value of the data.
    * @param {Object} mouse - Object that holds the relative x and y coordinates of the cursor.
    */
-  hit: function(mouse){
+  hit : function (mouse) {
 
     var
       options = this.options,
       prevHit = this.prevHit,
-      closest, sensibility, dataIndex, seriesIndex, series, value, xaxis, yaxis;
+      closest, sensibility, dataIndex, seriesIndex, series, value, xaxis, yaxis, n;
 
     if (this.series.length === 0) return;
 
@@ -142,16 +147,14 @@ Flotr.addPlugin('hit', {
 
     if (options.mouse.trackY &&
         !options.mouse.trackAll &&
-        this.hit.executeOnType(this.series, 'hit', [mouse, n]))
+        this.hit.executeOnType(this.series, 'hit', [mouse, n]) &&
+        !_.isUndefined(n.seriesIndex))
       {
-
-      if (!_.isUndefined(n.seriesIndex)) {
-        series    = this.series[n.seriesIndex];
-        n.series  = series;
-        n.mouse   = series.mouse;
-        n.xaxis   = series.xaxis;
-        n.yaxis   = series.yaxis;
-      }
+      series    = this.series[n.seriesIndex];
+      n.series  = series;
+      n.mouse   = series.mouse;
+      n.xaxis   = series.xaxis;
+      n.yaxis   = series.yaxis;
     } else {
 
       closest = this.hit.closest(mouse);
@@ -198,8 +201,8 @@ Flotr.addPlugin('hit', {
     var
       series    = this.series,
       options   = this.options,
-      mouseX    = mouse.x,
-      mouseY    = mouse.y,
+      relX      = mouse.relX,
+      relY      = mouse.relY,
       compare   = Number.MAX_VALUE,
       compareX  = Number.MAX_VALUE,
       closest   = {},
@@ -207,6 +210,7 @@ Flotr.addPlugin('hit', {
       check     = false,
       serie, data,
       distance, distanceX, distanceY,
+      mouseX, mouseY,
       x, y, i, j;
 
     function setClosest (o) {
@@ -217,14 +221,15 @@ Flotr.addPlugin('hit', {
       o.dataIndex = j;
       o.x = x;
       o.y = y;
+      check = true;
     }
 
     for (i = 0; i < series.length; i++) {
 
       serie = series[i];
       data = serie.data;
-
-      if (data.length) check = true;
+      mouseX = serie.xaxis.p2d(relX);
+      mouseY = serie.yaxis.p2d(relY);
 
       for (j = data.length; j--;) {
 
@@ -267,6 +272,8 @@ Flotr.addPlugin('hit', {
       s           = n.series,
       p           = n.mouse.position, 
       m           = n.mouse.margin,
+      x           = n.x,
+      y           = n.y,
       elStyle     = S_MOUSETRACK,
       mouseTrack  = this.mouseTrack,
       plotOffset  = this.plotOffset,
@@ -292,12 +299,12 @@ Flotr.addPlugin('hit', {
       else if (p.charAt(1) == 'w') pos += 'left:' + (m + left) + 'px;right:auto;';
 
     // Bars
-    } else if (s.bars.show) {
+    } else if (s.bars && s.bars.show) {
         pos += 'bottom:' + (m - top - n.yaxis.d2p(n.y/2) + this.canvasHeight) + 'px;top:auto;';
         pos += 'left:' + (m + left + n.xaxis.d2p(n.x - options.bars.barWidth/2)) + 'px;right:auto;';
 
     // Pie
-    } else if (s.pie.show) {
+    } else if (s.pie && s.pie.show) {
       var center = {
           x: (this.plotWidth)/2,
           y: (this.plotHeight)/2
@@ -310,10 +317,10 @@ Flotr.addPlugin('hit', {
 
     // Default
     } else {
-      if      (p.charAt(0) == 'n') pos += 'bottom:' + (m - top - n.yaxis.d2p(n.y) + this.canvasHeight) + 'px;top:auto;';
-      else if (p.charAt(0) == 's') pos += 'top:' + (m + top + n.yaxis.d2p(n.y)) + 'px;bottom:auto;';
-      if      (p.charAt(1) == 'e') pos += 'left:' + (m + left + n.xaxis.d2p(n.x)) + 'px;right:auto;';
-      else if (p.charAt(1) == 'w') pos += 'right:' + (m - left - n.xaxis.d2p(n.x) + this.canvasWidth) + 'px;left:auto;';
+      if (/n/.test(p)) pos += 'bottom:' + (m - top - n.yaxis.d2p(n.y) + this.canvasHeight) + 'px;top:auto;';
+      else             pos += 'top:' + (m + top + n.yaxis.d2p(n.y)) + 'px;bottom:auto;';
+      if (/e/.test(p)) pos += 'right:' + (m - left - n.xaxis.d2p(n.x) + this.canvasWidth) + 'px;left:auto;';
+      else             pos += 'left:' + (m + left + n.xaxis.d2p(n.x)) + 'px;right:auto;';
     }
 
     elStyle += pos;
@@ -321,9 +328,13 @@ Flotr.addPlugin('hit', {
 
     if (!decimals || decimals < 0) decimals = 0;
     
+    if (x && x.toFixed) x = x.toFixed(decimals);
+
+    if (y && y.toFixed) y = y.toFixed(decimals);
+
     mouseTrack.innerHTML = n.mouse.trackFormatter({
-      x: n.x.toFixed(decimals), 
-      y: n.y.toFixed(decimals), 
+      x: x ,
+      y: y, 
       series: n.series, 
       index: n.index,
       nearest: n,
@@ -331,6 +342,19 @@ Flotr.addPlugin('hit', {
     });
 
     D.show(mouseTrack);
+
+    if (n.mouse.relative) {
+      if (!/[ew]/.test(p)) {
+        // Center Horizontally
+        mouseTrack.style.left =
+          (left + n.xaxis.d2p(n.x) - D.size(mouseTrack).width / 2) + 'px';
+      } else
+      if (!/[ns]/.test(p)) {
+        // Center Vertically
+        mouseTrack.style.top =
+          (top + n.yaxis.d2p(n.y) - D.size(mouseTrack).height / 2) + 'px';
+      }
+    }
   }
 
 });
